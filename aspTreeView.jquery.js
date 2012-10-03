@@ -23,6 +23,11 @@
 
                         methods.cb_init($(this));
                         methods.anchor_init($(this));
+
+                        if (settings.show_menu) {
+                            methods.defineMenu();
+                            methods.contextMenu_init($(this));
+                        }
                     }
                 });
             },
@@ -60,6 +65,45 @@
                 anchors.addClass('tree-context-menu');
                 anchors.bind('click.aspTreeView', settings.anchor_click);
             },
+            contextMenu_init: function (tv) {
+                var htmlMenu = "<div class='contextMenu' id='" + $(tv).attr('id') + "_contextMenu'><ul>";
+                
+                var bindings = new Object();
+                
+                for (i = 0; i < settings.menu.length; i++) {
+                    htmlMenu += "<li id='" + settings.menu[i].id + "'>" + settings.menu[i].text + "<li>";
+
+                    eval("bindings." + settings.menu[i].id + "=" + settings.menu[i].callback);
+                }
+
+                htmlMenu += "</ul></div>";
+
+                $(tv).append(htmlMenu);
+                
+                $(tv).find('a.tree-context-menu').contextMenu($(tv).attr('id') + "_contextMenu", {
+                    bindings: bindings,
+                    menuStyle: {
+                        width: "auto"
+                    }
+                });
+            },
+            defineMenu: function () {
+                if (settings.menu) {
+                    if (settings.menu instanceof Array) {
+                        if (!settings.override_menu) {
+                            for (i = 0; i < menu.length; i++) {
+                                settings.menu.push(menu[i]);
+                            }
+                        }
+                    }
+                    else {
+                        $.error("el menu definido por el usuario no es un arreglo.")
+                    }
+                }
+                else {
+                    settings.menu = menu;
+                }
+            },
 
             cb_change: function (event) {
                 /// <summary>Evento change por defecto del checkbox.</summary>
@@ -68,12 +112,7 @@
             },
             anchor_click: function (event) {
                 /// <summary>Evento click por defecto de los anchor.</summary>
-
-                var tv_id = $(event.target).data("tv_id");
-
-                var nodeIndex = methods.getNodeIndex(event.target);
-                var checkBoxId = tv_id + "n" + nodeIndex + "CheckBox";
-                var checkBox = document.getElementById(checkBoxId);
+                var checkBox = methods.getCheckboxFromAnchor(event.target);
 
                 checkBox.checked = !checkBox.checked;
                 $(checkBox).change();
@@ -110,6 +149,17 @@
                         }
                     }
                 }
+            },
+            toggleLeafCheckBoxes: function (checkBox)
+            {
+                var postfix = "n";
+                var tv = $(checkBox).data("tv_id");
+                var childContainerId = tv + postfix + methods.getNodeIndex(checkBox) + "Nodes";
+    
+                $("#" + childContainerId).find("a[isleaf]").each(function () {
+                    var cb = methods.getCheckboxFromAnchor(document.getElementById($(this).attr("id")));
+                    cb.checked = checkBox.checked;
+                });
             },
 
             getNodeIndex: function (element) {
@@ -149,6 +199,16 @@
                     return parent;
                 }
             },
+            getCheckboxFromAnchor: function (anchor)
+            {
+                /// <summary> Obtiene el checkbox correspondiente al anchor pasado por parámetro </summary>
+                var tv = $(anchor).data("tv_id");
+                var nodeIndex = methods.getNodeIndex(anchor);
+                var checkBoxId = tv + "n" + nodeIndex + "CheckBox";
+                var checkBox = document.getElementById(checkBoxId);
+
+                return checkBox;
+            },
 
             destroy: function () {
                 $.error('No se ha difinido el método destroy. SE DEBE DEFINIR.');
@@ -171,7 +231,6 @@
 
                 return selectedNodes;
             },
-
             uncheckAll: function () {
                 /// <summary>
                 /// Quita la selección de todas las checkboxes
@@ -179,7 +238,6 @@
 
                 this.find("input[type=checkbox]").attr("checked", false);
             },
-            
             checkNodes: function (selectedNodesValues) {
                 /// <summary>
                 /// Seleccione los nodos cuyo value coincida con los enviados por parámetro
@@ -202,13 +260,41 @@
                         .attr("checked", true)
                         .change();
                 }
+            },
+
+            menu_checkChildren: function (t) {
+                var anchor = document.getElementById(t.id);
+                var checkBox = methods.getCheckboxFromAnchor(anchor);
+
+                var cbState = checkBox.checked;
+                checkBox.checked = true;
+                methods.toggleLeafCheckBoxes(checkBox);
+                checkBox.checked = cbState;
+
+            },
+            menu_uncheckChildren: function (t) {
+                var anchor = document.getElementById(t.id);
+                var checkBox = methods.getCheckboxFromAnchor(anchor);
+
+                var cbState = checkBox.checked;
+                checkBox.checked = false;
+                methods.toggleLeafCheckBoxes(checkBox);
+                checkBox.checked = cbState;
             }
         };
+
+        var menu = [
+            { id: 'checkChildren', text: 'Seleccionar Hojas', callback: methods.menu_checkChildren },
+            { id: 'uncheckChildren', text: 'Quitar Selección de Hojas', callback: methods.menu_uncheckChildren }
+        ];
 
         // Une las configuraciones por defecto con las configuraciones del usuario
         var settings = $.extend({
             cb_change: methods.cb_change,
-            anchor_click: methods.anchor_click
+            anchor_click: methods.anchor_click,
+            menu: null,
+            override_menu: false,
+            show_menu: true
         }, options);
 
         if (methods[options]) {
